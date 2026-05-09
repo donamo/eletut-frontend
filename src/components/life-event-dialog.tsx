@@ -1,5 +1,5 @@
 import { ChevronDown, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -28,6 +28,12 @@ export type EgoStateOptions = {
   felnott: EgoStateOption[];
 };
 
+export type LabelOption = {
+  id: string;
+  name: string;
+  color: LifeEventColor;
+};
+
 const eventFormSchema = z
   .object({
     title: z.string().trim().min(1, "A cím kötelező.").max(150, "A cím legfeljebb 150 karakter lehet."),
@@ -35,6 +41,7 @@ const eventFormSchema = z
     location: z.string().max(150, "A helyszín legfeljebb 150 karakter lehet.").optional(),
     color: z.union([z.nativeEnum(LifeEventColor), z.literal("")]).optional(),
     importance: z.coerce.number().int().min(1, "Legalább 1 lehet.").max(5, "Legfeljebb 5 lehet."),
+    labelNames: z.array(z.string().trim().min(1)),
     gyermekiStateIds: z.array(z.string()),
     szuloiStateIds: z.array(z.string()),
     felnottStateIds: z.array(z.string()),
@@ -67,6 +74,7 @@ export type LifeEventDialogSubmitValues = {
   location: string | null;
   color: LifeEventColor | null;
   importance: number;
+  labelNames: string[];
   gyermekiStateIds: string[];
   szuloiStateIds: string[];
   felnottStateIds: string[];
@@ -77,6 +85,7 @@ export type LifeEventDialogSubmitValues = {
 type LifeEventDialogProps = {
   event: LifeEventFieldsFragment | null;
   locationSuggestions: string[];
+  labelSuggestions: LabelOption[];
   egoStates: EgoStateOptions;
   isOpen: boolean;
   isSaving: boolean;
@@ -89,6 +98,7 @@ type LifeEventDialogProps = {
 export function LifeEventDialog({
   event,
   locationSuggestions,
+  labelSuggestions,
   egoStates,
   isOpen,
   isSaving,
@@ -132,6 +142,7 @@ export function LifeEventDialog({
       location: values.location?.trim() ? values.location.trim() : null,
       color: values.color || null,
       importance: values.importance,
+      labelNames: values.labelNames,
       gyermekiStateIds: values.gyermekiStateIds,
       szuloiStateIds: values.szuloiStateIds,
       felnottStateIds: values.felnottStateIds,
@@ -239,6 +250,12 @@ export function LifeEventDialog({
             </>
           </Field>
 
+          <Controller
+            control={form.control}
+            name="labelNames"
+            render={({ field }) => <LabelSelector suggestions={labelSuggestions} selectedNames={field.value} onChange={field.onChange} />}
+          />
+
           <Field label="Fontosság" error={form.formState.errors.importance?.message}>
             <div className="grid gap-2">
               <div className="flex items-center gap-3">
@@ -345,11 +362,95 @@ function toDefaultValues(event: LifeEventFieldsFragment | null): LifeEventFormVa
     location: event?.location ?? "",
     color: event?.color ?? "",
     importance: event?.importance ?? 3,
+    labelNames: event?.labels.map((label) => label.name) ?? [],
     gyermekiStateIds: event?.gyermekiStates.map((state) => state.id) ?? [],
     szuloiStateIds: event?.szuloiStates.map((state) => state.id) ?? [],
     felnottStateIds: event?.felnottStates.map((state) => state.id) ?? [],
     ...dateValues,
   };
+}
+
+function LabelSelector({
+  suggestions,
+  selectedNames,
+  onChange,
+}: {
+  suggestions: LabelOption[];
+  selectedNames: string[];
+  onChange: (names: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+  const selectedSet = new Set(selectedNames.map((name) => name.toLocaleLowerCase("hu-HU")));
+
+  const addLabel = (rawName: string) => {
+    const name = rawName.trim();
+    if (!name || selectedSet.has(name.toLocaleLowerCase("hu-HU"))) {
+      setDraft("");
+      return;
+    }
+
+    onChange([...selectedNames, name]);
+    setDraft("");
+  };
+
+  const removeLabel = (name: string) => {
+    onChange(selectedNames.filter((selectedName) => selectedName !== name));
+  };
+
+  return (
+    <div className="grid gap-2">
+      <span className="text-sm font-medium">Labelek</span>
+      <div className="flex gap-2">
+        <Input
+          list="life-event-label-suggestions"
+          placeholder="Új vagy meglévő label"
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              addLabel(draft);
+            }
+          }}
+        />
+        <Button type="button" variant="outline" onClick={() => addLabel(draft)}>
+          Hozzáad
+        </Button>
+        <datalist id="life-event-label-suggestions">
+          {suggestions.map((label) => (
+            <option key={label.id} value={label.name} />
+          ))}
+        </datalist>
+      </div>
+      {suggestions.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {suggestions.slice(0, 10).map((label) => (
+            <button
+              key={label.id}
+              type="button"
+              className="rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-secondary"
+              disabled={selectedSet.has(label.name.toLocaleLowerCase("hu-HU"))}
+              onClick={() => addLabel(label.name)}
+            >
+              {label.name}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {selectedNames.length > 0 ? (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedNames.map((name) => (
+            <span key={name} className="inline-flex items-center gap-1 rounded-md bg-secondary px-2 py-1 text-xs font-medium text-secondary-foreground">
+              {name}
+              <button type="button" className="text-muted-foreground hover:text-foreground" aria-label={`${name} label eltávolítása`} onClick={() => removeLabel(name)}>
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 function EgoStateSection({

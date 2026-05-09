@@ -8,6 +8,11 @@ export const LIFE_EVENT_FIELDS = graphql(`
     location
     color
     importance
+    labels {
+      id
+      name
+      color
+    }
     gyermekiStates {
       id
       name
@@ -77,6 +82,58 @@ export const EGO_STATES_QUERY = graphql(`
         innerSentence
         sortOrder
       }
+    }
+  }
+`);
+
+export const LABELS_QUERY = graphql(`
+  query Labels {
+    labels {
+      id
+      name
+      color
+      createdAt
+      updatedAt
+    }
+  }
+`);
+
+export const USERS_QUERY = graphql(`
+  query Users {
+    users {
+      id
+      email
+      displayName
+      googleSubject
+      isEnabled
+      createdAt
+      updatedAt
+    }
+  }
+`);
+
+export const UPDATE_LABEL_MUTATION = graphql(`
+  mutation UpdateLabel($input: UpdateLabelInput!) {
+    updateLabel(input: $input) {
+      id
+      name
+      color
+      createdAt
+      updatedAt
+    }
+  }
+`);
+
+export const UPDATE_USER_ENABLED_MUTATION = graphql(`
+  mutation UpdateUserEnabled($input: UpdateUserEnabledInput!) {
+    updateUserEnabled(input: $input) {
+      id
+      email
+      displayName
+      googleSubject
+      isEnabled
+      createdAt
+      updatedAt
     }
   }
 `);

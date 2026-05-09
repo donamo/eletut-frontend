@@ -11,6 +11,8 @@ export default defineConfig({
       input: {
         app: "index.html",
         login: "login.html",
+        admin: "admin.html",
+        systemAdmin: "system-admin.html",
       },
     },
   },

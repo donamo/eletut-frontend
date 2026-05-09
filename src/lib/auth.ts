@@ -6,6 +6,8 @@ export const userSchema = z.object({
   email: z.string().email(),
   displayName: z.string().nullable().optional(),
   googleSubject: z.string().optional(),
+  isEnabled: z.boolean().optional(),
+  isAdmin: z.boolean().optional(),
   createdAt: z.string().optional(),
   updatedAt: z.string().optional(),
 });

@@ -26,7 +26,11 @@ test("timeline page shows empty state and opens create dialog", async ({ page })
               { location: "Szeged", count: 1 },
             ],
           }
-        : request?.operationName === "EgoStates"
+        : request?.operationName === "Labels"
+          ? {
+              labels: [{ id: "label-1", name: "munka", color: "BLUE", createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z" }],
+            }
+          : request?.operationName === "EgoStates"
           ? {
               egoStates: {
                 gyermeki: [{ id: "child-1", name: "Alkalmazkodó gyermek", essence: "Megfelelés", innerSentence: "Jónak kell lennem.", sortOrder: 1 }],
@@ -53,6 +57,8 @@ test("timeline page shows empty state and opens create dialog", async ({ page })
   await expect(page.getByRole("dialog", { name: "Új esemény" })).toBeVisible();
   await expect(page.getByLabel("Cím")).toBeVisible();
   await expect(page.getByLabel("Helyszín")).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "Új esemény" }).getByText("Labelek")).toBeVisible();
+  await expect(page.getByText("munka")).toBeVisible();
   await expect(page.locator("datalist#life-event-location-suggestions option[value='Budapest']")).toHaveCount(1);
   await expect(page.getByText("Szín", { exact: true })).toBeVisible();
   await expect(page.getByLabel("Fontosság")).toBeVisible();

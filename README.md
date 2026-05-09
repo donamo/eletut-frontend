@@ -6,6 +6,7 @@ Az alkalmazás két belépési pontot tartalmaz:
 
 - `login.html`: Google alapú belépés indítása a backend auth endpointján keresztül.
 - `index.html`: privát életút/idővonal oldal eseménykezeléssel.
+- `admin.html`: label törzsadat kezelése.
 
 ## Technológia
 
@@ -54,6 +55,7 @@ Oldalak:
 ```text
 http://localhost:5173/login.html
 http://localhost:5173/index.html
+http://localhost:5173/admin.html
 ```
 
 Build:

@@ -2,7 +2,7 @@ import { useMutation, useQuery } from "@apollo/client";
 import { AlertCircle, CalendarClock, LogOut, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "../components/app-shell";
-import { LifeEventDialog, type EgoStateOptions, type LifeEventDialogSubmitValues } from "../components/life-event-dialog";
+import { LifeEventDialog, type EgoStateOptions, type LabelOption, type LifeEventDialogSubmitValues } from "../components/life-event-dialog";
 import { Button } from "../components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../components/ui/card";
 import {
@@ -11,6 +11,7 @@ import {
   CREATE_LIFE_EVENT_MUTATION,
   DELETE_LIFE_EVENT_MUTATION,
   EGO_STATES_QUERY,
+  LABELS_QUERY,
   TOP_LIFE_EVENT_LOCATIONS_QUERY,
   UPDATE_LIFE_EVENT_IMPORTANCE_AND_COLOR_MUTATION,
   UPDATE_LIFE_EVENT_MUTATION,
@@ -33,6 +34,7 @@ export function TimelinePage() {
   const [dialogEvent, setDialogEvent] = useState<LifeEventFieldsFragment | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -60,7 +62,12 @@ export function TimelinePage() {
     fetchPolicy: "cache-first",
     skip: !user,
   });
+  const { data: labelsData, refetch: refetchLabels } = useQuery(LABELS_QUERY, {
+    fetchPolicy: "cache-and-network",
+    skip: !user,
+  });
   const events = useFragment(LIFE_EVENT_FIELDS, data?.lifeEvents ?? []);
+  const labels = useMemo<LabelOption[]>(() => labelsData?.labels ?? [], [labelsData]);
   const locationSuggestions = useMemo(
     () => locationsData?.topLifeEventLocations.map((summary) => summary.location).filter(Boolean) ?? [],
     [locationsData],
@@ -73,14 +80,18 @@ export function TimelinePage() {
     }),
     [egoStatesData],
   );
-  const groups = useMemo(() => groupEventsByYear([...events]), [events]);
+  const filteredEvents = useMemo(
+    () => (selectedLabel ? events.filter((event) => event.labels.some((label) => label.name === selectedLabel)) : events),
+    [events, selectedLabel],
+  );
+  const groups = useMemo(() => groupEventsByYear([...filteredEvents]), [filteredEvents]);
 
   const [createLifeEvent, createState] = useMutation(CREATE_LIFE_EVENT_MUTATION, {
-    refetchQueries: [LIFE_EVENTS_QUERY, TOP_LIFE_EVENT_LOCATIONS_QUERY],
+    refetchQueries: [LIFE_EVENTS_QUERY, TOP_LIFE_EVENT_LOCATIONS_QUERY, LABELS_QUERY],
     awaitRefetchQueries: true,
   });
   const [updateLifeEvent, updateState] = useMutation(UPDATE_LIFE_EVENT_MUTATION, {
-    refetchQueries: [LIFE_EVENTS_QUERY, TOP_LIFE_EVENT_LOCATIONS_QUERY],
+    refetchQueries: [LIFE_EVENTS_QUERY, TOP_LIFE_EVENT_LOCATIONS_QUERY, LABELS_QUERY],
     awaitRefetchQueries: true,
   });
   const [deleteLifeEvent, deleteState] = useMutation(DELETE_LIFE_EVENT_MUTATION, {
@@ -135,6 +146,7 @@ export function TimelinePage() {
               location: values.location,
               color: values.color,
               importance: values.importance,
+              labelNames: values.labelNames,
               gyermekiStateIds: values.gyermekiStateIds,
               szuloiStateIds: values.szuloiStateIds,
               felnottStateIds: values.felnottStateIds,
@@ -152,6 +164,7 @@ export function TimelinePage() {
               location: values.location,
               color: values.color,
               importance: values.importance,
+              labelNames: values.labelNames,
               gyermekiStateIds: values.gyermekiStateIds,
               szuloiStateIds: values.szuloiStateIds,
               felnottStateIds: values.felnottStateIds,
@@ -163,6 +176,7 @@ export function TimelinePage() {
       }
 
       await refetchLocations();
+      await refetchLabels();
       setIsDialogOpen(false);
       setDialogEvent(null);
     } catch (error) {
@@ -228,6 +242,14 @@ export function TimelinePage() {
               <RefreshCw className={`h-4 w-4 ${areEventsLoading ? "animate-spin" : ""}`} />
               Frissítés
             </Button>
+            <Button variant="outline" onClick={() => window.location.assign("/admin.html")}>
+              Labelek
+            </Button>
+            {user?.isAdmin ? (
+              <Button variant="outline" onClick={() => window.location.assign("/system-admin.html")}>
+                Rendszeradmin
+              </Button>
+            ) : null}
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4" />
               Kijelentkezés
@@ -245,7 +267,13 @@ export function TimelinePage() {
         <section className="flex-1 py-8">
           {isInitialLoading ? <TimelineLoading /> : null}
 
-          {!isInitialLoading && groups.length === 0 ? <EmptyTimeline onCreate={openCreateDialog} /> : null}
+          {!isInitialLoading && events.length === 0 ? <EmptyTimeline onCreate={openCreateDialog} /> : null}
+
+          {!isInitialLoading && events.length > 0 ? <LabelFilter labels={labels} selectedLabel={selectedLabel} onChange={setSelectedLabel} /> : null}
+
+          {!isInitialLoading && events.length > 0 && groups.length === 0 ? (
+            <div className="mt-8 rounded-lg border border-dashed border-border bg-muted/40 p-6 text-sm text-muted-foreground">Nincs esemény a kiválasztott labelhez.</div>
+          ) : null}
 
           {!isInitialLoading && groups.length > 0 ? (
             <div className="grid gap-8">
@@ -274,6 +302,7 @@ export function TimelinePage() {
       <LifeEventDialog
         event={dialogEvent}
         locationSuggestions={locationSuggestions}
+        labelSuggestions={labels}
         egoStates={egoStates}
         isOpen={isDialogOpen}
         isSaving={isSaving}
@@ -328,6 +357,7 @@ function TimelineYearGroup({
                   {layout.showDescription && event.description ? (
                     <p className={cn("mt-2 line-clamp-2 leading-6 text-muted-foreground", layout.descriptionClassName)}>{event.description}</p>
                   ) : null}
+                  <LabelChips event={event} limit={layout.labelLimit} compact={layout.compactChips} />
                   {layout.showEgoStates ? <EgoStateChips event={event} limit={layout.egoStateLimit} compact={layout.compactChips} /> : null}
                 </button>
                 <div className={cn("grid shrink-0 gap-2", layout.controlsClassName)}>
@@ -352,6 +382,42 @@ function TimelineYearGroup({
         })}
       </div>
     </section>
+  );
+}
+
+function LabelFilter({ labels, selectedLabel, onChange }: { labels: LabelOption[]; selectedLabel: string; onChange: (label: string) => void }) {
+  if (labels.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mb-6 flex flex-wrap items-center gap-2 border-b border-border pb-5">
+      <span className="text-sm font-medium text-muted-foreground">Label szűrő</span>
+      <button
+        type="button"
+        className={cn("rounded-md px-3 py-1.5 text-sm font-medium", !selectedLabel ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-secondary")}
+        onClick={() => onChange("")}
+      >
+        Mind
+      </button>
+      {labels.map((label) => {
+        const colorOption = getLifeEventColorOption(label.color);
+        return (
+          <button
+            key={label.id}
+            type="button"
+            className={cn(
+              "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium hover:bg-secondary",
+              selectedLabel === label.name ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+            )}
+            onClick={() => onChange(label.name)}
+          >
+            <span className={cn("h-2.5 w-2.5 rounded-full", colorOption.dotClassName)} />
+            {label.name}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -445,6 +511,29 @@ function EgoStateChips({ event, limit, compact }: { event: LifeEventFieldsFragme
   );
 }
 
+function LabelChips({ event, limit, compact }: { event: LifeEventFieldsFragment; limit: number; compact: boolean }) {
+  if (event.labels.length === 0 || limit === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-3 flex flex-wrap gap-1.5">
+      {event.labels.slice(0, limit).map((label) => {
+        const colorOption = getLifeEventColorOption(label.color);
+        return (
+          <span key={label.id} className={cn("inline-flex items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground", compact ? "px-1.5 py-0.5" : "")}>
+            <span className={cn("h-2 w-2 rounded-full", colorOption.dotClassName)} />
+            {label.name}
+          </span>
+        );
+      })}
+      {event.labels.length > limit ? (
+        <span className={cn("rounded-md bg-muted px-2 py-1 text-xs font-medium text-muted-foreground", compact ? "px-1.5 py-0.5" : "")}>+{event.labels.length - limit}</span>
+      ) : null}
+    </div>
+  );
+}
+
 function getImportanceLayout(importance: number) {
   if (importance >= 5) {
     return {
@@ -456,6 +545,7 @@ function getImportanceLayout(importance: number) {
       descriptionClassName: "text-sm",
       showDescription: true,
       showEgoStates: true,
+      labelLimit: 6,
       egoStateLimit: 6,
       compactChips: false,
       compactControls: false,
@@ -472,6 +562,7 @@ function getImportanceLayout(importance: number) {
       descriptionClassName: "text-sm",
       showDescription: true,
       showEgoStates: true,
+      labelLimit: 5,
       egoStateLimit: 5,
       compactChips: false,
       compactControls: false,
@@ -488,6 +579,7 @@ function getImportanceLayout(importance: number) {
       descriptionClassName: "text-sm",
       showDescription: true,
       showEgoStates: true,
+      labelLimit: 3,
       egoStateLimit: 3,
       compactChips: true,
       compactControls: true,
@@ -504,6 +596,7 @@ function getImportanceLayout(importance: number) {
       descriptionClassName: "text-xs",
       showDescription: false,
       showEgoStates: true,
+      labelLimit: 2,
       egoStateLimit: 2,
       compactChips: true,
       compactControls: true,
@@ -519,6 +612,7 @@ function getImportanceLayout(importance: number) {
     descriptionClassName: "text-xs",
     showDescription: false,
     showEgoStates: false,
+    labelLimit: 1,
     egoStateLimit: 0,
     compactChips: true,
     compactControls: true,
