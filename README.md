@@ -28,13 +28,19 @@ Alapértelmezett backend URL fejlesztésben:
 http://localhost:3000
 ```
 
-Felülírható:
+Felülírható dev szervernél:
 
 ```bash
-VITE_API_BASE_URL=http://localhost:3000 npm run dev
+VITE_API_BASE_URL=https://api.example.com npm run dev
 ```
 
-Production buildben a `VITE_API_BASE_URL` build-time változó. Ha változik a backend URL, újra kell buildelni a frontend bundle-t vagy a Docker image-et.
+Production Docker image-nél az URL **runtime** állítható be — nem kell újra buildelni a bundle-t:
+
+```bash
+docker run -e API_BASE_URL=https://api.example.com myimage
+```
+
+A konténer induláskor egy `docker-entrypoint.sh` script generálja az `env-config.js` fájlt az `API_BASE_URL` env var értékéből, amit a HTML oldalak futás közben töltenek be.
 
 ## Fejlesztés
 
@@ -130,11 +136,10 @@ docker compose build
 docker compose up -d
 ```
 
-Más backend URL-lel:
+Más backend URL-lel (nem kell újrabuildelni):
 
 ```bash
-VITE_API_BASE_URL=https://eletut-api.donamo.science docker compose build
-docker compose up -d
+API_BASE_URL=https://eletut-api.donamo.science docker compose up -d
 ```
 
 Compose ellenőrzés:
@@ -173,6 +178,7 @@ VIRTUAL_PORT=80
 ## Fontos fájlok
 
 - `Dockerfile`: production image build
+- `docker-entrypoint.sh`: runtime `env-config.js` generálás induláskor
 - `docker-compose.yml`: deploy service
 - `default.conf`: nginx config
 - `.dockerignore`: Docker build context szűrése
@@ -185,6 +191,6 @@ VIRTUAL_PORT=80
 
 ## Megjegyzések
 
-- A Vite build statikus bundle-t készít, ezért runtime env helyett build-time `VITE_*` változókat használ.
+- A backend URL runtime konfigurálható az `API_BASE_URL` env var-ral — nem kell újrabuildelni a Docker image-et környezetenként. Fejlesztésben a `VITE_API_BASE_URL` változó továbbra is működik.
 - A build jelenleg chunk size warningot adhat az Apollo/GraphQL csomagok miatt. Ez nem hibás működés, később route alapú lazy loadinggal lehet csökkenteni.
 - Az `external/generated/` mappa csak akkor használandó, ha a backend workflow ténylegesen oda generálja az aktuális interface-eket. A jelenlegi codegen az `external/schema.graphql` és `external/openapi.yaml` fájlokat használja.
