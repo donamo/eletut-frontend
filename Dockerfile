@@ -10,6 +10,7 @@ RUN npm run build
 
 FROM nginx:stable-alpine AS production
 
+COPY nginx.conf /etc/nginx/nginx.conf
 COPY default.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker-entrypoint.sh /docker-entrypoint.sh
